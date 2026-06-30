@@ -7,11 +7,11 @@ pipeline {
                 docker {
                     image 'snakee/golang-junit:1.21'
                     reuseNode true
-                    
+
                 }
             }
             steps {
-                dir ('bug-tracker-backend') {
+                dir ('bugtracker-backend') {
                    sh 'go test -v ./...'
                 }
             }
