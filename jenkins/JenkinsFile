@@ -15,7 +15,7 @@ pipeline {
                         // Levanta un contenedor Docker específico para el entorno de Go
                         docker {
                             image 'snakee/golang-junit:1.21'
-                            reuseNode true // Reutiliza el espacio de trabajo del nodo actual para evitar descargas extras
+                            reuseNode true // Reutiliza el espacio de trabajo del nodo actual
                             // Solución al error de permisos: Redirige la caché de Go a la carpeta /tmp
                             args '-e GOCACHE=/tmp/go-cache -e GOPATH=/tmp/go-path'
                         }
@@ -36,13 +36,13 @@ pipeline {
                             '''
                         }
                     }
-                    // Acciones que se ejecutan inmediatamente después de terminar los pasos del Backend
+                    // Acciones post-ejecución del Backend
                     post {
                         always {
-                            // Registra y grafica los resultados de las pruebas en la interfaz de Jenkins mediante el XML
+                            // Registra y grafica los resultados de las pruebas en la interfaz de Jenkins
                             junit 'bugtracker-backend/report.xml'
                             
-                            // Publica el reporte HTML de cobertura directamente en el panel lateral de Jenkins
+                            // Publica el reporte HTML de cobertura en el panel lateral de Jenkins
                             publishHTML (target: [
                                 allowMissing: false,
                                 alwaysLinkToLastBuild: true,
@@ -50,7 +50,7 @@ pipeline {
                                 reportDir: 'bugtracker-backend/reports',
                                 reportFiles: 'coverage.html',
                                 reportName: 'Backend Coverage Report'
-                            ])
+                              ])
                         }
                     }  
                 } // Fin del Sub-Stage Backend
@@ -73,23 +73,24 @@ pipeline {
                                 # Instalación limpia y exacta de las dependencias usando el package-lock.json
                                 npm ci 
                                 
-                                # Ejecuta los tests de Jest/Vitest (los cuales generan el XML y la cobertura nativa)
-                                npm test
+                                # MODIFICACIÓN: Forzamos a Jest a volcar el reporte HTML en una carpeta específica llamada 'html-report'
+                                npm test -- --coverageDirectory="html-report"
                             '''
                         }
                     }
-                    // Acciones que se ejecutan inmediatamente después de terminar los pasos del Frontend
+                    // Acciones post-ejecución del Frontend
                     post {
                         always {
                             // Registra los resultados de las pruebas del frontend en Jenkins
                             junit 'bugtracker-frontend/test-results.xml'
                             
-                            // Publica la cobertura de Jest apuntando directo a su ruta nativa (evita el error del comando mv)
+                            // Publica la cobertura de Jest apuntando a la nueva carpeta garantizada
                             publishHTML (target: [
                                 allowMissing: false,
                                 alwaysLinkToLastBuild: true,
                                 keepAll: true,
-                                reportDir: 'bugtracker-frontend/coverage/lcov-report',
+                                // MODIFICACIÓN: Apuntamos a la carpeta que forzamos arriba
+                                reportDir: 'bugtracker-frontend/html-report',
                                 reportFiles: 'index.html',
                                 reportName: 'Frontend Coverage Report'
                             ])
