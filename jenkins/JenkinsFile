@@ -35,12 +35,21 @@ pipeline {
             post{
             }
             //los pasos que se ejecutarán después de que se ejecute el stage, en este caso se publicará el reporte generado en el paso anterior
-              always {
+            always {
                  junit 'bugtracker-backend/report.xml'
+                 publishHTML (target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'bugtracker-backend/reports',
+                    reportFiles: 'coverage.html',
+                    reportName: 'Backend Coverage Report'
 
-              }  
-            }
+            }  
         }
+
+    
+    
         //Stage para ejecutar los test unitarios del frontend, en este caso se usará un contenedor de docker con la imagen de node:20-alpine
         stage('Unit Test FrontEnd') {
             agent {
@@ -59,10 +68,11 @@ pipeline {
                 }
             }
             post{
-              always {
-                 junit 'bugtracker-frontend/test-results.xml'
-              }  
+                always {
+                    junit 'bugtracker-frontend/test-results.xml'
+                }  
             }
         }
+    
     }
 }   
