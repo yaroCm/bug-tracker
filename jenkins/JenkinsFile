@@ -55,6 +55,8 @@ pipeline {
                     sh '''
                         npm ci 
                         npm test
+                        mkdir -p reports 
+                        mv coverage reports/
                     '''
                 }
             }
@@ -62,6 +64,14 @@ pipeline {
                 always {
                     // Nota: Asegúrate de que 'npm test' realmente genere este archivo XML en esa ruta
                     junit 'bugtracker-frontend/test-results.xml'
+                    publishHTML (target: [
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'bugtracker-frontend/reports/coverage',
+                        reportFiles: 'index.html',
+                        reportName: 'Frontend Coverage Report'
+                    ])
                 }  
             }
         }
