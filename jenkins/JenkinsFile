@@ -1,38 +1,48 @@
 pipeline {
+    // Define que el pipeline puede ejecutarse en cualquier agente (nodo) disponible en Jenkins
     agent any
     
     stages {
-        // --- STAGE UNIT TEST ---
+        // Stage contenedor principal que agrupa las ejecuciones en paralelo
         stage('Unit Test') {
             parallel {
-                // --- STAGE BACKEND ---
+                
+                // ==========================================
+                //  SUB-STAGE: PRUEBAS UNITARIAS DEL BACKEND
+                // ==========================================
                 stage('Unit Test Backend') {
                     agent {
+                        // Levanta un contenedor Docker específico para el entorno de Go
                         docker {
                             image 'snakee/golang-junit:1.21'
-                            reuseNode true
+                            reuseNode true // Reutiliza el espacio de trabajo del nodo actual para evitar descargas extras
+                            // Solución al error de permisos: Redirige la caché de Go a la carpeta /tmp
                             args '-e GOCACHE=/tmp/go-cache -e GOPATH=/tmp/go-path'
                         }
                     }
                     steps {
+                        // Cambia el directorio de ejecución a la carpeta del backend
                         dir ('bugtracker-backend') {
                             sh '''
-                                # Ejecutamos los tests una sola vez generando la cobertura y el reporte JUnit al mismo tiempo
+                                # Ejecuta los tests de Go, calcula cobertura atómica y canaliza la salida para generar el XML de JUnit
                                 go test -v -coverprofile=coverage.out -covermode=atomic ./... 2>&1 | go-junit-report > report.xml
                                 
-                                # Generamos el HTML de cobertura
+                                # Convierte el reporte de cobertura binario (.out) en un archivo web HTML legible
                                 go tool cover -html=coverage.out -o coverage.html 
 
-                                # Creamos el directorio y movemos el reporte
+                                # Crea de forma segura la carpeta 'reports' e introduce el HTML generado
                                 mkdir -p reports
                                 mv coverage.html reports/
                             '''
                         }
                     }
-                    // CORRECCIÓN: 'always' debe vivir dentro de 'post'
+                    // Acciones que se ejecutan inmediatamente después de terminar los pasos del Backend
                     post {
                         always {
+                            // Registra y grafica los resultados de las pruebas en la interfaz de Jenkins mediante el XML
                             junit 'bugtracker-backend/report.xml'
+                            
+                            // Publica el reporte HTML de cobertura directamente en el panel lateral de Jenkins
                             publishHTML (target: [
                                 allowMissing: false,
                                 alwaysLinkToLastBuild: true,
@@ -43,47 +53,58 @@ pipeline {
                             ])
                         }
                     }  
-                }
+                } // Fin del Sub-Stage Backend
 
-                // --- STAGE FRONTEND ---
+                // ==========================================
+                //  SUB-STAGE: PRUEBAS UNITARIAS DEL FRONTEND
+                // ==========================================
                 stage('Unit Test FrontEnd') {
                     agent {
+                        // Levanta un contenedor Docker con Node.js en su versión ligera
                         docker {
                             image 'node:20-alpine'
                             reuseNode true
                         }
                     }
                     steps {
+                        // Cambia el directorio de ejecución a la carpeta del frontend
                         dir ('bugtracker-frontend') {
                             sh '''
+                                # Instalación limpia y exacta de las dependencias usando el package-lock.json
                                 npm ci 
+                                
+                                # Ejecuta los tests de Jest/Vitest (los cuales generan el XML y la cobertura nativa)
                                 npm test
-                                mkdir -p reports 
-                                mv coverage reports/
                             '''
                         }
                     }
+                    // Acciones que se ejecutan inmediatamente después de terminar los pasos del Frontend
                     post {
                         always {
-                            // Nota: Asegúrate de que 'npm test' realmente genere este archivo XML en esa ruta
+                            // Registra los resultados de las pruebas del frontend en Jenkins
                             junit 'bugtracker-frontend/test-results.xml'
+                            
+                            // Publica la cobertura de Jest apuntando directo a su ruta nativa (evita el error del comando mv)
                             publishHTML (target: [
                                 allowMissing: false,
                                 alwaysLinkToLastBuild: true,
                                 keepAll: true,
-                                reportDir: 'bugtracker-frontend/reports/coverage',
+                                reportDir: 'bugtracker-frontend/coverage/lcov-report',
                                 reportFiles: 'index.html',
                                 reportName: 'Frontend Coverage Report'
                             ])
                         }  
                     }
-                }
+                } // Fin del Sub-Stage Frontend
                 
             }
-        }
+        } // Fin del Stage Unit Test
     }
+    
+    // Acciones globales que se ejecutan al finalizar COMPLETAMENTE todo el pipeline
     post {
         always {
+            // Borra todo el espacio de trabajo en el servidor para no dejar basura ni saturar el disco
             cleanWs()
         }
     }
