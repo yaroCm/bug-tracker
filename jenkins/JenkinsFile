@@ -36,14 +36,15 @@ pipeline {
             }
             //los pasos que se ejecutarán después de que se ejecute el stage, en este caso se publicará el reporte generado en el paso anterior
             always {
-                 junit 'bugtracker-backend/report.xml'
-                 publishHTML (target: [
+                junit 'bugtracker-backend/report.xml'
+                publishHTML (target: [
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
                     reportDir: 'bugtracker-backend/reports',
                     reportFiles: 'coverage.html',
                     reportName: 'Backend Coverage Report'
+                ])
 
             }  
         }
