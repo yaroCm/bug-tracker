@@ -1,63 +1,53 @@
 pipeline {
     agent any
-    //los stages que tendrá 
+    
     stages {
+        // --- STAGE BACKEND ---
         stage('Unit Test Backend') {
-            //Los agentes que usará para poder ejercuitar los test unitarios, en este caso se usará un contenedor de docker con la imagen de golang-junit
             agent {
-                //agregas docker 
                 docker {
                     image 'snakee/golang-junit:1.21'
                     reuseNode true
-                    // Redirigimos la caché al workspace actual
                     args '-e GOCACHE=/tmp/go-cache -e GOPATH=/tmp/go-path'
-
                 }
             }
-            //los pasos que se ejecutarán dentro del stage, en este caso se ejecutará el comando go test para ejecutar los test unitarios y generar un reporte en formato JUnit
             steps {
                 dir ('bugtracker-backend') {
                     sh '''
-                        go test -v ./... 2>&1 | go-junit-report > report.xml
+                        # Ejecutamos los tests una sola vez generando la cobertura y el reporte JUnit al mismo tiempo
+                        go test -v -coverprofile=coverage.out -covermode=atomic ./... 2>&1 | go-junit-report > report.xml
                         
-                        # Generate coverage report
-
-                        go test -coverprofile=coverage.out -covermode=atomic ./...
+                        # Generamos el HTML de cobertura
                         go tool cover -html=coverage.out -o coverage.html 
 
+                        # Creamos el directorio y movemos el reporte
                         mkdir -p reports
                         mv coverage.html reports/
                     '''
-
                 }
             }
-            //los pasos que se ejecutarán después de que se ejecute el stage, en este caso se publicará el reporte generado en el paso anterior
-            post{
-            }
-            //los pasos que se ejecutarán después de que se ejecute el stage, en este caso se publicará el reporte generado en el paso anterior
-            always {
-                junit 'bugtracker-backend/report.xml'
-                publishHTML (target: [
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'bugtracker-backend/reports',
-                    reportFiles: 'coverage.html',
-                    reportName: 'Backend Coverage Report'
-                ])
-
+            // CORRECCIÓN: 'always' debe vivir dentro de 'post'
+            post {
+                always {
+                    junit 'bugtracker-backend/report.xml'
+                    publishHTML (target: [
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'bugtracker-backend/reports',
+                        reportFiles: 'coverage.html',
+                        reportName: 'Backend Coverage Report'
+                    ])
+                }
             }  
         }
 
-    
-    
-        //Stage para ejecutar los test unitarios del frontend, en este caso se usará un contenedor de docker con la imagen de node:20-alpine
+        // --- STAGE FRONTEND ---
         stage('Unit Test FrontEnd') {
             agent {
                 docker {
                     image 'node:20-alpine'
                     reuseNode true
-
                 }
             }
             steps {
@@ -68,12 +58,12 @@ pipeline {
                     '''
                 }
             }
-            post{
+            post {
                 always {
+                    // Nota: Asegúrate de que 'npm test' realmente genere este archivo XML en esa ruta
                     junit 'bugtracker-frontend/test-results.xml'
                 }  
             }
         }
-    
     }
-}   
+}
